@@ -1,12 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import type { ReactNode } from "react";
-
-export interface User {
-  id: string;
-  username: string;
-  role?: string; // optional — we can adjust based on our need (e.g., "moderator" | "participant")
-  password?: string; // optional for security reasons
-}
+import type { User } from "@/types"; // Import User type from centralized types file
 
 // 💡 Define the context type
 interface AuthContextType {
@@ -39,16 +33,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem("debateUser");
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
+    // Check for user in localStorage on initial load
+    try {
+      const savedUser = localStorage.getItem("debateUser");
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+      }
+    } catch (error) {
+      console.error("Failed to parse user from localStorage", error);
+      localStorage.removeItem("debateUser");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   const login = (userData: User) => {
-    setUser(userData);
-    localStorage.setItem("debateUser", JSON.stringify(userData));
+    // Omit password before saving to state and localStorage for security
+    const { password, ...userToStore } = userData;
+    setUser(userToStore);
+    localStorage.setItem("debateUser", JSON.stringify(userToStore));
   };
 
   const logout = () => {
@@ -58,7 +61,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{ user, login, logout, loading }}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
 };

@@ -6,9 +6,10 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card } from "../components/ui/card";
-import { useAuth, type User } from "../contexts/AuthContext";
+import { useAuth } from "../contexts/AuthContext";
 import { mockUsers } from "../mock/mockData";
 import { useToast } from "../hooks/use-toast";
+import type { User } from "@/types";
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState<string>("");

@@ -1,13 +1,12 @@
 import React, { useState, useEffect, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Eye, Swords, LogOut, Search, Users } from "lucide-react";
+import { Plus, Eye, Swords, LogOut, Search, Users, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useAuth, type User } from "@/contexts/AuthContext";
-import { mockDebates, mockTopics, mockUsers } from "@/mock/mockData";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -17,44 +16,18 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-
-
-// TYPE DEFINITIONS
-
-interface Topic {
-  id: string;
-  title: string;
-}
-
-// A debater participating in a debate, including their position
-interface Debater extends User {
-  position: "for" | "against";
-}
-
-interface Debate {
-  id: string;
-  topic: Topic;
-  debater1: Debater;
-  debater2: Debater;
-  currentRound: number;
-  totalRounds: number;
-}
-
-interface Challenge {
-  id: string;
-  topic: Topic;
-  challenger: User;
-  position: "for" | "against";
-  status: string;
-  createdAt: string;
-}
+import type { Debate, Topic, User, Challenge } from "@/types";
+import { getDebates, getTopics, getUsers, createChallenge } from "@/api/debateAPI";
 
 const DashboardPage: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [debates, setDebates] = useState<Debate[]>(mockDebates as any);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [debates, setDebates] = useState<Debate[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [availableOpponents, setAvailableOpponents] = useState<User[]>([]);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState<boolean>(false);
@@ -65,8 +38,31 @@ const DashboardPage: React.FC = () => {
   const [opponentSearch, setOpponentSearch] = useState<string>("");
 
   useEffect(() => {
-    if (!user) navigate("/login");
-  }, [user, navigate]);
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const [debatesData, topicsData, debatersData] = await Promise.all([
+          getDebates(),
+          getTopics(),
+          getUsers('debater'),
+        ]);
+        setDebates(debatesData);
+        setTopics(topicsData);
+        setAvailableOpponents(debatersData.filter(d => d.id !== user.id));
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to load dashboard data." });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user, navigate, toast]);
 
   const handleLogout = (): void => {
     logout();
@@ -77,46 +73,49 @@ const DashboardPage: React.FC = () => {
     navigate(`/debate/${debateId}`);
   };
 
-  const handleCreateChallenge = (): void => {
-    if (!selectedTopic) {
+  const handleCreateChallenge = async () => {
+    if (!selectedTopic || !user) {
       toast({
-        title: "Select a topic",
-        description: "Please choose a debate topic",
+        title: "Missing Information",
+        description: "Please select a topic and position.",
       });
       return;
     }
 
-    const topic = mockTopics.find((t: Topic) => t.id === selectedTopic);
-    if (!topic || !user) return;
-
-    const newChallenge: Challenge = {
-      id: `c${Date.now()}`,
-      topic,
-      challenger: user,
-      position: selectedPosition,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
-
-    setChallenges([...challenges, newChallenge]);
-    toast({
-      title: "Challenge Created",
-      description: "Waiting for an opponent to accept...",
-    });
-    setIsCreateDialogOpen(false);
-    setSelectedTopic("");
+    try {
+      const newChallenge = await createChallenge(user, selectedTopic, selectedPosition);
+      setChallenges(prev => [...prev, newChallenge]);
+      toast({
+        title: "Challenge Created",
+        description: "Waiting for an opponent to accept...",
+      });
+      setIsCreateDialogOpen(false);
+      // Reset form
+      setSelectedTopic("");
+      setOpponentSearch("");
+      setSelectedPosition("for");
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to create challenge." });
+    }
   };
+  
+  const filteredOpponents = opponentSearch
+    ? availableOpponents.filter(u =>
+        u.username.toLowerCase().includes(opponentSearch.toLowerCase())
+      )
+    : [];
 
-  const availableDebaters = mockUsers.filter(
-    (u: User) =>
-      u.role === "debater" &&
-      u.id !== user?.id &&
-      u.username.toLowerCase().includes(opponentSearch.toLowerCase())
-  );
-
-  const filteredDebates = debates.filter((debate: Debate) =>
+  const filteredDebates = debates.filter((debate) =>
     debate.topic.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <Loader2 className="w-12 h-12 text-white animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800">
@@ -195,7 +194,7 @@ const DashboardPage: React.FC = () => {
                       className="w-full p-2 bg-slate-800 border border-slate-700 rounded-md text-white"
                     >
                       <option value="">Choose a topic...</option>
-                      {mockTopics.map((topic: Topic) => (
+                      {topics.map((topic) => (
                         <option key={topic.id} value={topic.id}>
                           {topic.title}
                         </option>
@@ -251,7 +250,7 @@ const DashboardPage: React.FC = () => {
                     />
                     {opponentSearch && (
                       <div className="max-h-32 overflow-y-auto space-y-1 mt-2">
-                        {availableDebaters.map((debater: User) => (
+                        {filteredOpponents.map((debater) => (
                           <div
                             key={debater.id}
                             className="p-2 bg-slate-800 rounded hover:bg-slate-700 cursor-pointer text-sm"
@@ -284,7 +283,7 @@ const DashboardPage: React.FC = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <AnimatePresence>
-              {filteredDebates.map((debate: Debate, index: number) => (
+              {filteredDebates.map((debate, index) => (
                 <motion.div
                   key={debate.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -338,10 +337,10 @@ const DashboardPage: React.FC = () => {
             </AnimatePresence>
           </div>
 
-          {filteredDebates.length === 0 && (
+          {filteredDebates.length === 0 && !isLoading && (
             <Card className="p-8 bg-slate-900/50 border-slate-700 text-center">
               <p className="text-slate-400">
-                No debates found. Start a new challenge!
+                No debates found for your search.
               </p>
             </Card>
           )}
