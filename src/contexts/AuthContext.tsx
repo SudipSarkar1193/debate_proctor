@@ -5,6 +5,7 @@ export interface User {
   id: string;
   username: string;
   role?: string; // optional — we can adjust based on our need (e.g., "moderator" | "participant")
+  password?: string; // optional for security reasons
 }
 
 // 💡 Define the context type
