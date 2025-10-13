@@ -7,8 +7,8 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card } from "../components/ui/card";
 import { useAuth } from "../contexts/AuthContext";
-import { mockUsers } from "../mock/mockData";
-import { useToast } from "../hooks/use-toast";
+import { loginUser } from "@/api/debateAPI";
+import { toast } from "sonner";
 import type { User } from "@/types";
 
 const LoginPage: React.FC = () => {
@@ -18,26 +18,20 @@ const LoginPage: React.FC = () => {
 
   const { login } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
 
-  const handleLogin = (e: FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const user = (mockUsers as User[]).find(
-      (u) =>
-        u.username === username && u.password === password && u.role === role
-    );
+    const user = await loginUser(username, password, role);
 
     if (user) {
       login(user);
-      toast({
-        title: "Login Successful",
+      toast.success("Login Successful", {
         description: `Welcome back, ${username}!`,
       });
       navigate("/dashboard");
     } else {
-      toast({
-        title: "Login Failed",
+      toast.error("Login Failed", {
         description: "Invalid credentials or role mismatch",
       });
     }
@@ -151,15 +145,6 @@ const LoginPage: React.FC = () => {
               Login
             </Button>
           </form>
-
-          {/* <div className="mt-6 pt-6 border-t border-slate-700">
-            <p className="text-sm text-slate-400 text-center">
-              Demo credentials:
-            </p>
-            <p className="text-xs text-slate-500 text-center mt-2">
-              Debater: alex_debater / pass123 | Audience: emma_viewer / pass123
-            </p>
-          </div> */}
         </Card>
       </motion.div>
     </div>

@@ -1,7 +1,15 @@
 import React, { useState, useEffect, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Eye, Swords, LogOut, Search, Users, Loader2 } from "lucide-react";
+import {
+  Plus,
+  Eye,
+  Swords,
+  LogOut,
+  Search,
+  Users,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,14 +23,18 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import type { Debate, Topic, User, Challenge } from "@/types";
-import { getDebates, getTopics, getUsers, createChallenge } from "@/api/debateAPI";
+import {
+  getDebates,
+  getTopics,
+  getUsers,
+  createChallenge,
+} from "@/api/debateAPI";
 
 const DashboardPage: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [debates, setDebates] = useState<Debate[]>([]);
@@ -49,20 +61,20 @@ const DashboardPage: React.FC = () => {
         const [debatesData, topicsData, debatersData] = await Promise.all([
           getDebates(),
           getTopics(),
-          getUsers('debater'),
+          getUsers("debater"),
         ]);
         setDebates(debatesData);
         setTopics(topicsData);
-        setAvailableOpponents(debatersData.filter(d => d.id !== user.id));
+        setAvailableOpponents(debatersData.filter((d) => d.id !== user.id));
       } catch (error) {
-        toast({ title: "Error", description: "Failed to load dashboard data." });
+        toast.error("Error", { description: "Failed to load dashboard data." });
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchData();
-  }, [user, navigate, toast]);
+  }, [user, navigate]);
 
   const handleLogout = (): void => {
     logout();
@@ -70,23 +82,26 @@ const DashboardPage: React.FC = () => {
   };
 
   const handleWatchDebate = (debateId: string): void => {
+    console.log("Navigating to debate:", debateId);
     navigate(`/debate/${debateId}`);
   };
 
   const handleCreateChallenge = async () => {
     if (!selectedTopic || !user) {
-      toast({
-        title: "Missing Information",
+      toast.warning("Missing Information", {
         description: "Please select a topic and position.",
       });
       return;
     }
 
     try {
-      const newChallenge = await createChallenge(user, selectedTopic, selectedPosition);
-      setChallenges(prev => [...prev, newChallenge]);
-      toast({
-        title: "Challenge Created",
+      const newChallenge = await createChallenge(
+        user,
+        selectedTopic,
+        selectedPosition
+      );
+      setChallenges((prev) => [...prev, newChallenge]);
+      toast.success("Challenge Created", {
         description: "Waiting for an opponent to accept...",
       });
       setIsCreateDialogOpen(false);
@@ -95,12 +110,12 @@ const DashboardPage: React.FC = () => {
       setOpponentSearch("");
       setSelectedPosition("for");
     } catch (error) {
-      toast({ title: "Error", description: "Failed to create challenge." });
+      toast.error("Error", { description: "Failed to create challenge." });
     }
   };
-  
+
   const filteredOpponents = opponentSearch
-    ? availableOpponents.filter(u =>
+    ? availableOpponents.filter((u) =>
         u.username.toLowerCase().includes(opponentSearch.toLowerCase())
       )
     : [];
@@ -325,7 +340,10 @@ const DashboardPage: React.FC = () => {
                     </div>
 
                     <Button
-                      onClick={() => handleWatchDebate(debate.id)}
+                      onClick={() => {
+                        handleWatchDebate(debate.id);
+                        console.log("Clicked");
+                      }}
                       className="w-full bg-slate-700 hover:bg-slate-600"
                     >
                       <Eye className="w-4 h-4 mr-2" />
