@@ -31,7 +31,7 @@ import {
   getUsers,
   createChallenge,
 } from "@/api/debateAPI";
-
+import { useSocket } from "../contexts/SocketContext";
 const DashboardPage: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -48,6 +48,7 @@ const DashboardPage: React.FC = () => {
     "for"
   );
   const [opponentSearch, setOpponentSearch] = useState<string>("");
+  const socket = useSocket();
 
   useEffect(() => {
     if (!user) {
@@ -83,6 +84,9 @@ const DashboardPage: React.FC = () => {
 
   const handleWatchDebate = (debateId: string): void => {
     console.log("Navigating to debate:", debateId);
+    if(socket){
+      socket.emit('debate-room',debateId);
+    }
     navigate(`/debate/${debateId}`);
   };
 

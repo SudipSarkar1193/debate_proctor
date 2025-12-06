@@ -1,7 +1,9 @@
 import { mockDebates, mockTopics, mockMessages, mockUsers, mockChallenges } from '../mock/mockData';
 import type { Debate, Topic, Message, User, Challenge, DebaterPosition } from '../types';
+import type { Socket } from "socket.io-client";
 
 const SIMULATED_DELAY = 500; // 500ms delay
+
 
 // Helper to simulate API calls with a delay
 const simulateApiCall = <T>(data: T): Promise<T> => {
@@ -45,11 +47,18 @@ export const getMessagesForDebate = (debateId: string): Promise<Message[]> => {
   return simulateApiCall(messages);
 };
 
-export const postMessage = (debateId: string, message: Omit<Message, 'id'>): Promise<Message> => {
+export const postMessage = (debateId: string, message: Omit<Message, 'id'> ,socket: Socket | null): Promise<Message> => {
+  console.log(message) // invoking socket
+  console.log("he")
     const newMessage = { ...message, id: `m${Date.now()}` };
     if (!mockMessages[debateId]) {
         mockMessages[debateId] = [];
     }
+    if(socket){
+      socket.emit('sendMsg', {debateId,message});
+    }
+
+
     mockMessages[debateId].push(newMessage);
     return simulateApiCall(newMessage);
 };

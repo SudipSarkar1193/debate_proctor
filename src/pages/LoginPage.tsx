@@ -9,7 +9,7 @@ import { Card } from "../components/ui/card";
 import { useAuth } from "../contexts/AuthContext";
 import { loginUser } from "@/api/debateAPI";
 import { toast } from "sonner";
-import type { User } from "@/types";
+// import type { User } from "@/types";
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState<string>("");

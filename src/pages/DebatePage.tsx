@@ -30,6 +30,8 @@ import {
   getMessagesForDebate,
   postMessage,
 } from "@/api/debateAPI";
+import { useSocket } from "@/contexts/SocketContext";
+
 
 const DebatePage: React.FC = () => {
   const { debateId } = useParams<{ debateId: string }>();
@@ -47,6 +49,7 @@ const DebatePage: React.FC = () => {
   >(null);
   const [showTurnBanner, setShowTurnBanner] = useState<boolean>(false);
   const [currentTurnUser, setCurrentTurnUser] = useState<User | null>(null);
+  const socket = useSocket();
 
   // --- Load Debate Data ---
   useEffect(() => {
@@ -100,6 +103,15 @@ const DebatePage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(()=>{
+    if(socket){
+      socket?.on('real-time-sync-message',(message)=>{
+        console.log(message);
+        
+        setMessages((prev) => [...prev, message]);
+      })
+    }
+    },[socket])
   // --- Handle Send ---
   const handleSendMessage = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -136,8 +148,10 @@ const DebatePage: React.FC = () => {
       round: debate.currentRound,
     };
 
+
     try {
-      const sentMessage = await postMessage(debate.id, messageData);
+      console.log(messageData)
+      const sentMessage = await postMessage(debate.id, messageData,socket);
       setMessages((prev) => [...prev, sentMessage]);
       setNewMessage("");
 
