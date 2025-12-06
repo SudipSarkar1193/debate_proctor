@@ -50,6 +50,12 @@ const DebatePage: React.FC = () => {
   const [showTurnBanner, setShowTurnBanner] = useState<boolean>(false);
   const [currentTurnUser, setCurrentTurnUser] = useState<User | null>(null);
   const socket = useSocket();
+  let messageCounter = 0;
+
+  function generateMessageId() {
+    messageCounter += 1;
+    return messageCounter;
+  }
 
   // --- Load Debate Data ---
   useEffect(() => {
@@ -104,12 +110,21 @@ const DebatePage: React.FC = () => {
   }, [messages]);
 
   useEffect(()=>{
-    if(socket){
-      socket?.on('real-time-sync-message',(message)=>{
-        console.log(message);
+    if(!socket){
+      return;
+    }
+    const handleMessage = (message:any) => {
+      const isFound = messages.find((msg) => msg.messageId ===  message.messageId);
+      console.log(isFound);
         
+      if(!isFound){
         setMessages((prev) => [...prev, message]);
-      })
+      }
+    }
+    socket?.on('real-time-sync-message',handleMessage)
+
+    return ()=> {
+      socket.off('real-time-sync-message',handleMessage)
     }
     },[socket])
   // --- Handle Send ---
@@ -143,6 +158,7 @@ const DebatePage: React.FC = () => {
       debaterId: user.id,
       debaterName: user.username,
       message: newMessage,
+      messageId: generateMessageId(),
       timestamp: new Date().toISOString(),
       factCheckStatus: randomStatus,
       round: debate.currentRound,

@@ -53,6 +53,7 @@ export interface Message {
   debaterId: string;
   debaterName: string;
   message: string;
+  messageId:number,
   timestamp: string; // ISO 8601 date string
   factCheckStatus: FactCheckStatus;
   round: number;

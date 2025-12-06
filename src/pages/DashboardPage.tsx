@@ -84,7 +84,10 @@ const DashboardPage: React.FC = () => {
 
   const handleWatchDebate = (debateId: string): void => {
     console.log("Navigating to debate:", debateId);
+    console.log(socket)
     if(socket){
+      console.log(socket);
+      
       socket.emit('debate-room',debateId);
     }
     navigate(`/debate/${debateId}`);
