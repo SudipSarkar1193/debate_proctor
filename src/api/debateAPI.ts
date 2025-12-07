@@ -6,15 +6,19 @@ const SIMULATED_DELAY = 500; // 500ms delay
 const STORAGE_KEY = 'debate_proctor_debates';
 
 // --- INITIALIZATION ---
-// Initialize debates from localStorage or fallback to mock data
 let currentDebates: Debate[] = [];
 
 try {
   const storedDebates = localStorage.getItem(STORAGE_KEY);
   if (storedDebates) {
-    currentDebates = JSON.parse(storedDebates);
+    const parsed = JSON.parse(storedDebates);
+    // Ensure the parsed data is actually an array
+    if (Array.isArray(parsed)) {
+      currentDebates = parsed;
+    } else {
+      currentDebates = [...mockDebates];
+    }
   } else {
-    // If nothing in storage, start with the mock data
     currentDebates = [...mockDebates];
   }
 } catch (error) {
@@ -22,10 +26,12 @@ try {
   currentDebates = [...mockDebates];
 }
 
-// Helper to save debates to localStorage whenever we modify them
+// Helper to save debates to localStorage
 const persistDebates = () => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(currentDebates));
+    if (currentDebates && Array.isArray(currentDebates)) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentDebates));
+    }
   } catch (error) {
     console.error("Failed to save debates to local storage:", error);
   }
@@ -35,7 +41,6 @@ const persistDebates = () => {
 const simulateApiCall = <T>(data: T): Promise<T> => {
   return new Promise(resolve => {
     setTimeout(() => {
-      // Create a deep copy to prevent direct mutation of mock data
       resolve(data ? JSON.parse(JSON.stringify(data)) : null);
     }, SIMULATED_DELAY);
   });
@@ -52,13 +57,13 @@ export const loginUser = async (username: string, password: string, role: 'debat
 
 // --- DEBATES ---
 export const getDebates = (): Promise<Debate[]> => {
-  // Return the persisted list instead of the read-only mock import
   return simulateApiCall(currentDebates);
 };
 
 export const getDebateById = (id: string): Promise<Debate | undefined> => {
-    // Search the persisted list
-    const debate = currentDebates.find(d => d.id === id);
+    // Validate currentDebates exists before searching
+    const safeDebates = Array.isArray(currentDebates) ? currentDebates : [];
+    const debate = safeDebates.find(d => d.id === id);
     return simulateApiCall(debate);
 };
 
@@ -70,24 +75,13 @@ export const getTopics = (): Promise<Topic[]> => {
 
 
 // --- MESSAGES ---
-// export const getMessagesForDebate = (debateId: string): Promise<Message[]> => {
-//   const messages = (mockMessages as Record<string, Message[]>)[debateId] || [];
-//   return simulateApiCall(messages);
-// };
-
 export const postMessage = (debateId: string, message: Omit<Message, 'id'> ,socket: Socket | null): Promise<Message> => {
-  console.log(message) // invoking socket
-  console.log("he")
     const newMessage = { ...message, id: `m${Date.now()}` };
-    // if (!mockMessages[debateId]) {
-    //     mockMessages[debateId] = [];
-    // }
+    
     if(socket){
       socket.emit('sendMsg', {debateId,message});
     }
 
-
-    // mockMessages[debateId].push(newMessage);
     return simulateApiCall(newMessage);
 };
 
@@ -153,7 +147,10 @@ export const addChallengeAsDebate = (challenge: Challenge) => {
     startedAt: new Date().toISOString(),
   };
 
-  // Push to local state and persist to localStorage
+  // Safe push
+  if (!Array.isArray(currentDebates)) {
+    currentDebates = [];
+  }
   currentDebates.push(newDebate);
   persistDebates();
 };
