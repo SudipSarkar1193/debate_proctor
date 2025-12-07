@@ -38,6 +38,7 @@ const DashboardPage: React.FC = () => {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState<boolean>(false);
+  const [isEnterCodeOpen, setIsEnterCodeOpen] = useState<boolean>(false);
   const [selectedTopic, setSelectedTopic] = useState<string>("");
   const [selectedPosition, setSelectedPosition] = useState<"for" | "against">(
     "for"
@@ -114,7 +115,7 @@ const DashboardPage: React.FC = () => {
       // 2. Generate room id
       const roomId = generateRandomKey();
       setDebateRoomId(() => roomId);
-      
+
       const challengeObj: Challenge = {
         id: roomId,
         challenger: {
@@ -156,6 +157,9 @@ const DashboardPage: React.FC = () => {
     debate.topic.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const submitId = () => {
+    navigate(`/debate/${debateRoomId}`);
+  }
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -217,108 +221,138 @@ const DashboardPage: React.FC = () => {
           */}
 
           {user?.role === "debater" && (
-            <Dialog
-              open={isCreateDialogOpen}
-              onOpenChange={setIsCreateDialogOpen}
-            >
-              <DialogTrigger asChild>
-                <Button className="bg-slate-700 hover:bg-slate-600">
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Challenge
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-slate-900 border-slate-700 text-white">
-                <DialogHeader>
-                  <DialogTitle>Create New Challenge</DialogTitle>
-                </DialogHeader>
-
-                <div className="space-y-4 mt-4">
-                  {/* Topic */}
-                  <div className="space-y-2">
-                    <Label>Select Topic</Label>
-                    <select
-                      value={selectedTopic}
-                      onChange={(e) => setSelectedTopic(e.target.value)}
-                      className="w-full p-2 bg-slate-800 border border-slate-700 rounded-md text-white"
-                    >
-                      <option value="">Choose a topic...</option>
-                      {topics.map((topic) => (
-                        <option key={topic.id} value={topic.id}>
-                          {topic.title}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Position */}
-                  <div className="space-y-2">
-                    <Label>Your Position</Label>
-                    <div className="flex gap-3">
-                      <Button
-                        type="button"
-                        variant={
-                          selectedPosition === "for" ? "default" : "outline"
-                        }
-                        onClick={() => setSelectedPosition("for")}
-                        className={
-                          selectedPosition === "for"
-                            ? "bg-slate-700"
-                            : "border-slate-700"
-                        }
-                      >
-                        For
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={
-                          selectedPosition === "against" ? "default" : "ghost"
-                        }
-                        onClick={() => setSelectedPosition("against")}
-                        className={
-                          selectedPosition === "against"
-                            ? "bg-slate-700"
-                            : "border-slate-700"
-                        }
-                      >
-                        Against
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Opponent */}
-                  <div className="space-y-2">
-                    <Label>Challenge Opponent (optional)</Label>
-                    <Input
-                      placeholder="Search by username..."
-                      value={opponentSearch}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                        setOpponentSearch(e.target.value)
-                      }
-                      className="bg-slate-800 border-slate-700 text-white"
-                    />
-                    {opponentSearch && (
-                      <div className="max-h-32 overflow-y-auto space-y-1 mt-2">
-                        {filteredOpponents.map((debater) => (
-                          <div
-                            key={debater.id}
-                            className="p-2 bg-slate-800 rounded hover:bg-slate-700 cursor-pointer text-sm"
-                          >
-                            {debater.username}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <Button
-                    onClick={handleCreateChallenge}
-                    className="w-full bg-slate-700 hover:bg-slate-600"
-                  >
-                    Create Challenge
+            <>
+              <Dialog
+                open={isCreateDialogOpen}
+                onOpenChange={setIsCreateDialogOpen}
+              >
+                <DialogTrigger asChild>
+                  <Button className="bg-slate-700 hover:bg-slate-600">
+                    <Plus className="w-4 h-4 mr-2" />
+                    New Challenge
                   </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent className="bg-slate-900 border-slate-700 text-white">
+                  <DialogHeader>
+                    <DialogTitle>Create New Challenge</DialogTitle>
+                  </DialogHeader>
+
+                  <div className="space-y-4 mt-4">
+                    {/* Topic */}
+                    <div className="space-y-2">
+                      <Label>Select Topic</Label>
+                      <select
+                        value={selectedTopic}
+                        onChange={(e) => setSelectedTopic(e.target.value)}
+                        className="w-full p-2 bg-slate-800 border border-slate-700 rounded-md text-white"
+                      >
+                        <option value="">Choose a topic...</option>
+                        {topics.map((topic) => (
+                          <option key={topic.id} value={topic.id}>
+                            {topic.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Position */}
+                    <div className="space-y-2">
+                      <Label>Your Position</Label>
+                      <div className="flex gap-3">
+                        <Button
+                          type="button"
+                          variant={
+                            selectedPosition === "for" ? "default" : "outline"
+                          }
+                          onClick={() => setSelectedPosition("for")}
+                          className={
+                            selectedPosition === "for"
+                              ? "bg-slate-700"
+                              : "border-slate-700"
+                          }
+                        >
+                          For
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={
+                            selectedPosition === "against" ? "default" : "ghost"
+                          }
+                          onClick={() => setSelectedPosition("against")}
+                          className={
+                            selectedPosition === "against"
+                              ? "bg-slate-700"
+                              : "border-slate-700"
+                          }
+                        >
+                          Against
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Opponent */}
+                    <div className="space-y-2">
+                      <Label>Challenge Opponent (optional)</Label>
+                      <Input
+                        placeholder="Search by username..."
+                        value={opponentSearch}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                          setOpponentSearch(e.target.value)
+                        }
+                        className="bg-slate-800 border-slate-700 text-white"
+                      />
+                      {opponentSearch && (
+                        <div className="max-h-32 overflow-y-auto space-y-1 mt-2">
+                          {filteredOpponents.map((debater) => (
+                            <div
+                              key={debater.id}
+                              className="p-2 bg-slate-800 rounded hover:bg-slate-700 cursor-pointer text-sm"
+                            >
+                              {debater.username}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <Button
+                      onClick={handleCreateChallenge}
+                      className="w-full bg-slate-700 hover:bg-slate-600"
+                    >
+                      Create Challenge
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Dialog open={isEnterCodeOpen} onOpenChange={setIsEnterCodeOpen}>
+                <DialogTrigger>
+                  <Button className="bg-slate-700 hover:bg-slate-600">
+                    Enter into Challenge
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-slate-900 border-slate-700 text-white">
+                  <DialogHeader>
+                    <DialogTitle>Enter Debate Room Id</DialogTitle>
+                  </DialogHeader>
+
+                  <div className="space-y-4 mt-4">
+                    <input
+                      type="text"
+                      value={debateRoomId}
+                      onChange={(e) => setDebateRoomId(e.target.value)}
+                      placeholder="Enter Room Id"
+                      className="w-full p-3 rounded-md bg-slate-800 text-white border border-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                    />
+                    <Button
+                      onClick={submitId}
+                      className="w-full bg-slate-700 hover:bg-slate-600"
+                    >
+                      Submit
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </>
           )}
         </div>
 
