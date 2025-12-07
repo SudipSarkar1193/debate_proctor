@@ -3,7 +3,33 @@ import type { Debate, Topic, Message, User, Challenge, DebaterPosition } from '.
 import type { Socket } from "socket.io-client";
 
 const SIMULATED_DELAY = 500; // 500ms delay
+const STORAGE_KEY = 'debate_proctor_debates';
 
+// --- INITIALIZATION ---
+// Initialize debates from localStorage or fallback to mock data
+let currentDebates: Debate[] = [];
+
+try {
+  const storedDebates = localStorage.getItem(STORAGE_KEY);
+  if (storedDebates) {
+    currentDebates = JSON.parse(storedDebates);
+  } else {
+    // If nothing in storage, start with the mock data
+    currentDebates = [...mockDebates];
+  }
+} catch (error) {
+  console.error("Failed to load debates from local storage:", error);
+  currentDebates = [...mockDebates];
+}
+
+// Helper to save debates to localStorage whenever we modify them
+const persistDebates = () => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(currentDebates));
+  } catch (error) {
+    console.error("Failed to save debates to local storage:", error);
+  }
+};
 
 // Helper to simulate API calls with a delay
 const simulateApiCall = <T>(data: T): Promise<T> => {
@@ -26,11 +52,13 @@ export const loginUser = async (username: string, password: string, role: 'debat
 
 // --- DEBATES ---
 export const getDebates = (): Promise<Debate[]> => {
-  return simulateApiCall(mockDebates);
+  // Return the persisted list instead of the read-only mock import
+  return simulateApiCall(currentDebates);
 };
 
 export const getDebateById = (id: string): Promise<Debate | undefined> => {
-    const debate = mockDebates.find(d => d.id === id);
+    // Search the persisted list
+    const debate = currentDebates.find(d => d.id === id);
     return simulateApiCall(debate);
 };
 
@@ -125,6 +153,7 @@ export const addChallengeAsDebate = (challenge: Challenge) => {
     startedAt: new Date().toISOString(),
   };
 
-  mockDebates.push(newDebate);
+  // Push to local state and persist to localStorage
+  currentDebates.push(newDebate);
+  persistDebates();
 };
-
