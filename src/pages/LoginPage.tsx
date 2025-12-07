@@ -98,7 +98,6 @@ const LoginPage: React.FC = () => {
 
             <div className="space-y-3">
               <Label className="text-slate-300">Role</Label>
-              <div className="grid grid-cols-2 gap-3">
                 <motion.div
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
@@ -117,26 +116,7 @@ const LoginPage: React.FC = () => {
                     Debater
                   </Button>
                 </motion.div>
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Button
-                    type="button"
-                    variant={role === "audience" ? "default" : "outline"}
-                    className={`w-full ${
-                      role === "audience"
-                        ? "bg-slate-700 hover:bg-slate-600"
-                        : "bg-slate-800 border-slate-700 hover:bg-slate-750"
-                    }`}
-                    onClick={() => setRole("audience")}
-                  >
-                    <Users className="w-4 h-4 mr-2" />
-                    Audience
-                  </Button>
-                </motion.div>
               </div>
-            </div>
 
             <Button
               type="submit"
