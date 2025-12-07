@@ -1,4 +1,4 @@
-import { mockDebates, mockTopics, mockMessages, mockUsers, mockChallenges } from '../mock/mockData';
+import { mockDebates, mockTopics, mockUsers, mockChallenges } from '../mock/mockData';
 import type { Debate, Topic, Message, User, Challenge, DebaterPosition } from '../types';
 import type { Socket } from "socket.io-client";
 
@@ -10,7 +10,7 @@ const simulateApiCall = <T>(data: T): Promise<T> => {
   return new Promise(resolve => {
     setTimeout(() => {
       // Create a deep copy to prevent direct mutation of mock data
-      resolve(JSON.parse(JSON.stringify(data)));
+      resolve(data ? JSON.parse(JSON.stringify(data)) : null);
     }, SIMULATED_DELAY);
   });
 };
@@ -42,24 +42,24 @@ export const getTopics = (): Promise<Topic[]> => {
 
 
 // --- MESSAGES ---
-export const getMessagesForDebate = (debateId: string): Promise<Message[]> => {
-  const messages = (mockMessages as Record<string, Message[]>)[debateId] || [];
-  return simulateApiCall(messages);
-};
+// export const getMessagesForDebate = (debateId: string): Promise<Message[]> => {
+//   const messages = (mockMessages as Record<string, Message[]>)[debateId] || [];
+//   return simulateApiCall(messages);
+// };
 
 export const postMessage = (debateId: string, message: Omit<Message, 'id'> ,socket: Socket | null): Promise<Message> => {
   console.log(message) // invoking socket
   console.log("he")
     const newMessage = { ...message, id: `m${Date.now()}` };
-    if (!mockMessages[debateId]) {
-        mockMessages[debateId] = [];
-    }
+    // if (!mockMessages[debateId]) {
+    //     mockMessages[debateId] = [];
+    // }
     if(socket){
       socket.emit('sendMsg', {debateId,message});
     }
 
 
-    mockMessages[debateId].push(newMessage);
+    // mockMessages[debateId].push(newMessage);
     return simulateApiCall(newMessage);
 };
 
@@ -95,3 +95,36 @@ export const createChallenge = (challenger: User, topicId: string, position: Deb
     mockChallenges.push(newChallenge);
     return simulateApiCall(newChallenge);
 };
+
+
+export const addChallengeAsDebate = (challenge: Challenge) => {
+  const newDebate: Debate = {
+    id: challenge.id,
+    topic: challenge.topic,
+    debater1: {
+      id: challenge.challenger.id,
+      username: challenge.challenger.username,
+      position: challenge.position,
+    },
+    debater2: challenge.challenged
+      ? {
+          id: challenge.challenged.id,
+          username: challenge.challenged.username,
+          position: challenge.position === "for" ? "against" : "for",
+        }
+      : {
+          id: "pending",
+          username: "Waiting...",
+          position: "against",
+        },
+    status: "live",
+    currentRound: 1,
+    totalRounds: 3,
+    currentTurn: "debater1",
+    timeRemaining: 600,
+    startedAt: new Date().toISOString(),
+  };
+
+  mockDebates.push(newDebate);
+};
+

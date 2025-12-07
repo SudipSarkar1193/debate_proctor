@@ -1,15 +1,7 @@
 import React, { useState, useEffect, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Plus,
-  Eye,
-  Swords,
-  LogOut,
-  Search,
-  Users,
-  Loader2,
-} from "lucide-react";
+import { Plus, Eye, Swords, LogOut, Users, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,8 +22,11 @@ import {
   getTopics,
   getUsers,
   createChallenge,
+  addChallengeAsDebate,
 } from "@/api/debateAPI";
+import { mockDebates } from "@/mock/mockData";
 import { useSocket } from "../contexts/SocketContext";
+
 const DashboardPage: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -48,6 +43,7 @@ const DashboardPage: React.FC = () => {
     "for"
   );
   const [opponentSearch, setOpponentSearch] = useState<string>("");
+  const [debateRoomId, setDebateRoomId] = useState<string>("");
   const socket = useSocket();
 
   useEffect(() => {
@@ -84,14 +80,20 @@ const DashboardPage: React.FC = () => {
 
   const handleWatchDebate = (debateId: string): void => {
     console.log("Navigating to debate:", debateId);
-    console.log(socket)
-    if(socket){
+    console.log(socket);
+    if (socket) {
       console.log(socket);
-      
-      socket.emit('debate-room',debateId);
+
+      socket.emit("debate-room", debateId);
     }
     navigate(`/debate/${debateId}`);
   };
+
+  function generateRandomKey(): string {
+    return "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx".replace(/[x]/g, () => {
+      return ((Math.random() * 16) | 0).toString(16);
+    });
+  }
 
   const handleCreateChallenge = async () => {
     if (!selectedTopic || !user) {
@@ -102,20 +104,43 @@ const DashboardPage: React.FC = () => {
     }
 
     try {
-      const newChallenge = await createChallenge(
+      // 1. Create challenge on backend
+      const created = await createChallenge(
         user,
         selectedTopic,
         selectedPosition
       );
-      setChallenges((prev) => [...prev, newChallenge]);
-      toast.success("Challenge Created", {
-        description: "Waiting for an opponent to accept...",
-      });
+
+      // 2. Generate room id
+      const roomId = generateRandomKey();
+      setDebateRoomId(() => roomId);
+      
+      const challengeObj: Challenge = {
+        id: roomId,
+        challenger: {
+          id: user.id,
+          username: user.username,
+        },
+        challenged: undefined, // or assign selected opponent if needed
+        topic: created.topic,
+        position: selectedPosition,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      };
+
+      // Insert safely into React state
+      setChallenges((prev) => [...prev, challengeObj]);
+      addChallengeAsDebate(challengeObj);
+      // 5. Close the dialog and reset inputs
       setIsCreateDialogOpen(false);
-      // Reset form
       setSelectedTopic("");
-      setOpponentSearch("");
       setSelectedPosition("for");
+      setOpponentSearch("");
+
+      // 6. Show success toast
+      toast.success("Challenge Created", {
+        description: "Debate Room ID: " + roomId,
+      });
     } catch (error) {
       toast.error("Error", { description: "Failed to create challenge." });
     }
@@ -178,7 +203,7 @@ const DashboardPage: React.FC = () => {
       <div className="container mx-auto px-4 py-8">
         {/* Action Bar */}
         <div className="flex flex-col sm:flex-row gap-4 mb-8">
-          <div className="flex-1 relative">
+          {/*<div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500 w-4 h-4" />
             <Input
               placeholder="Search debates by topic..."
@@ -189,6 +214,7 @@ const DashboardPage: React.FC = () => {
               className="pl-10 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
             />
           </div>
+          */}
 
           {user?.role === "debater" && (
             <Dialog
@@ -245,7 +271,7 @@ const DashboardPage: React.FC = () => {
                       <Button
                         type="button"
                         variant={
-                          selectedPosition === "against" ? "default" : "outline"
+                          selectedPosition === "against" ? "default" : "ghost"
                         }
                         onClick={() => setSelectedPosition("against")}
                         className={
@@ -288,7 +314,7 @@ const DashboardPage: React.FC = () => {
                     onClick={handleCreateChallenge}
                     className="w-full bg-slate-700 hover:bg-slate-600"
                   >
-                    Send Challenge
+                    Create Challenge
                   </Button>
                 </div>
               </DialogContent>
@@ -302,12 +328,11 @@ const DashboardPage: React.FC = () => {
             <Users className="w-6 h-6 mr-2 text-slate-400" />
             Live Debates
           </h2>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <AnimatePresence>
-              {filteredDebates.map((debate, index) => (
+              {challenges.map((challenge, index) => (
                 <motion.div
-                  key={debate.id}
+                  key={challenge.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
@@ -317,44 +342,52 @@ const DashboardPage: React.FC = () => {
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-white mb-2">
-                          {debate.topic.title}
+                          {challenge.topic.title}
                         </h3>
-                        <Badge className="bg-green-500/10 text-green-400 border-green-500/20">
-                          Live
+                        <Badge className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
+                          {challenge.status === "pending"
+                            ? "Waiting..."
+                            : challenge.status}
                         </Badge>
                       </div>
                     </div>
 
                     <div className="space-y-3 mb-4">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-400">For:</span>
+                        <span className="text-slate-400">Challenger:</span>
                         <span className="text-white font-medium">
-                          {debate.debater1.username}
+                          {challenge.challenger.username}
                         </span>
                       </div>
+
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-400">Against:</span>
-                        <span className="text-white font-medium">
-                          {debate.debater2.username}
+                        <span className="text-slate-400">Position:</span>
+                        <span className="text-white font-medium capitalize">
+                          {challenge.position}
                         </span>
                       </div>
+
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-400">Round:</span>
+                        <span className="text-slate-400">Challenged:</span>
+                        <span className="text-white font-medium">
+                          {challenge.challenged?.username || "Open Challenge"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-400">Created:</span>
                         <span className="text-white">
-                          {debate.currentRound} / {debate.totalRounds}
+                          {new Date(challenge.createdAt).toLocaleString()}
                         </span>
                       </div>
                     </div>
 
                     <Button
-                      onClick={() => {
-                        handleWatchDebate(debate.id);
-                        console.log("Clicked");
-                      }}
+                      onClick={() => handleWatchDebate(challenge.id)}
                       className="w-full bg-slate-700 hover:bg-slate-600"
                     >
                       <Eye className="w-4 h-4 mr-2" />
-                      {user?.role === "debater" ? "Join" : "Watch"} Debate
+                      {user?.role === "debater" ? "Join" : "Watch"} Challenge
                     </Button>
                   </Card>
                 </motion.div>

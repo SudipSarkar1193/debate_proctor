@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Loader2,
+  Copy,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
@@ -27,11 +28,10 @@ import { useAuth } from "../contexts/AuthContext";
 import type { Debate, Message, User } from "@/types";
 import {
   getDebateById,
-  getMessagesForDebate,
+  // getMessagesForDebate,
   postMessage,
 } from "@/api/debateAPI";
 import { useSocket } from "@/contexts/SocketContext";
-
 
 const DebatePage: React.FC = () => {
   const { debateId } = useParams<{ debateId: string }>();
@@ -67,18 +67,19 @@ const DebatePage: React.FC = () => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const [debateData, messagesData] = await Promise.all([
+        const [debateData] = await Promise.all([
           getDebateById(debateId),
-          getMessagesForDebate(debateId),
+          // getMessagesForDebate(debateId),
         ]);
 
         if (debateData) {
           setDebate(debateData);
-          setMessages(messagesData);
+          // setMessages(messagesData);
           setTimeRemaining(debateData.timeRemaining);
           setCurrentTurn(debateData.currentTurn);
         } else {
           // Corrected toast call
+          console.log(debateId);
           toast.error("Error", { description: "Debate not found." });
           navigate("/dashboard");
         }
@@ -109,24 +110,26 @@ const DebatePage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(()=>{
-    if(!socket){
+  useEffect(() => {
+    if (!socket) {
       return;
     }
-    const handleMessage = (message:any) => {
-      const isFound = messages.find((msg) => msg.messageId ===  message.messageId);
+    const handleMessage = (message: any) => {
+      const isFound = messages.find(
+        (msg) => msg.messageId === message.messageId
+      );
       console.log(isFound);
-        
-      if(!isFound){
+
+      if (!isFound) {
         setMessages((prev) => [...prev, message]);
       }
-    }
-    socket?.on('real-time-sync-message',handleMessage)
+    };
+    socket?.on("real-time-sync-message", handleMessage);
 
-    return ()=> {
-      socket.off('real-time-sync-message',handleMessage)
-    }
-    },[socket])
+    return () => {
+      socket.off("real-time-sync-message", handleMessage);
+    };
+  }, [socket]);
   // --- Handle Send ---
   const handleSendMessage = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -164,10 +167,9 @@ const DebatePage: React.FC = () => {
       round: debate.currentRound,
     };
 
-
     try {
-      console.log(messageData)
-      const sentMessage = await postMessage(debate.id, messageData,socket);
+      console.log(messageData);
+      const sentMessage = await postMessage(debate.id, messageData, socket);
       setMessages((prev) => [...prev, sentMessage]);
       setNewMessage("");
 
@@ -249,8 +251,8 @@ const DebatePage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg-col-span-1">
             <Card className="p-6 bg-slate-900/50 border-slate-700 sticky top-24">
-              <h3 className="text-lg font-bold text-white mb-4">Topic</h3>
-              <p className="text-slate-300 mb-6">{debate.topic.title}</p>
+              <h3 className="text-md font-bold text-white ">Topic</h3>
+              <p className="text-slate-300 mb-2">{debate.topic.title}</p>
               <div className="space-y-4">
                 <div>
                   <p className="text-sm text-slate-400 mb-2">Round</p>
@@ -310,6 +312,21 @@ const DebatePage: React.FC = () => {
                     ))}
                   </div>
                 </div>
+              </div>
+              <div className="text-sm font-semibold text-white mb-1 p-4 bg-slate-700/50 border-2 border-slate-600 rounded-lg flex items-center justify-between">
+                <span>Debate Room Id: {debateId}</span>
+
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(debateId || "");
+                    toast.success("Copied!", {
+                      description: "Debate Room ID copied to clipboard",
+                    });
+                  }}
+                  className="text-slate-300 hover:text-white transition"
+                >
+                  <Copy className="w-5 h-5 cursor-pointer" />
+                </button>
               </div>
             </Card>
           </div>

@@ -85,52 +85,52 @@ export const mockDebates: Debate[] = [
 ];
 
 // Mock Messages (Record mapping debateId to an array of messages)
-export const mockMessages: Record<string, Message[]> = {
-  d1: [
-    {
-      id: "m1",
-      debaterId: "1",
-      debaterName: "sudip",
-      message:
-        "AI and automation are already transforming industries. Look at manufacturing - robots now perform tasks that used to require hundreds of workers.",
-      timestamp: new Date(Date.now() - 500000).toISOString(),
-      factCheckStatus: "verified",
-      round: 1,
-    },
-    {
-      id: "m2",
-      debaterId: "2",
-      debaterName: "sasuke",
-      message:
-        "While automation exists, it also creates new jobs. The tech industry has grown exponentially, creating millions of positions that didn't exist 20 years ago.",
-      timestamp: new Date(Date.now() - 480000).toISOString(),
-      factCheckStatus: "verified",
-      round: 1,
-    },
-    {
-      id: "m3",
-      debaterId: "1",
-      debaterName: "sudip",
-      message:
-        "Studies show that AI could automate 30% of current jobs by 2030. The pace of change is unprecedented.",
-      timestamp: new Date(Date.now() - 460000).toISOString(),
-      factCheckStatus: "questionable",
-      round: 2,
-    },
-  ],
-  d2: [
-    {
-      id: "m4",
-      debaterId: "3",
-      debaterName: "tubai",
-      message:
-        "Social media platforms are designed to be addictive, exploiting psychological vulnerabilities for profit.",
-      timestamp: new Date(Date.now() - 240000).toISOString(),
-      factCheckStatus: "verified",
-      round: 1,
-    },
-  ],
-};
+// export const mockMessages: Record<string, Message[]> = {
+//   d1: [
+//     {
+//       id: "m1",
+//       debaterId: "1",
+//       debaterName: "sudip",
+//       message:
+//         "AI and automation are already transforming industries. Look at manufacturing - robots now perform tasks that used to require hundreds of workers.",
+//       timestamp: new Date(Date.now() - 500000).toISOString(),
+//       factCheckStatus: "verified",
+//       round: 1,
+//     },
+//     {
+//       id: "m2",
+//       debaterId: "2",
+//       debaterName: "sasuke",
+//       message:
+//         "While automation exists, it also creates new jobs. The tech industry has grown exponentially, creating millions of positions that didn't exist 20 years ago.",
+//       timestamp: new Date(Date.now() - 480000).toISOString(),
+//       factCheckStatus: "verified",
+//       round: 1,
+//     },
+//     {
+//       id: "m3",
+//       debaterId: "1",
+//       debaterName: "sudip",
+//       message:
+//         "Studies show that AI could automate 30% of current jobs by 2030. The pace of change is unprecedented.",
+//       timestamp: new Date(Date.now() - 460000).toISOString(),
+//       factCheckStatus: "questionable",
+//       round: 2,
+//     },
+//   ],
+//   d2: [
+//     {
+//       id: "m4",
+//       debaterId: "3",
+//       debaterName: "tubai",
+//       message:
+//         "Social media platforms are designed to be addictive, exploiting psychological vulnerabilities for profit.",
+//       timestamp: new Date(Date.now() - 240000).toISOString(),
+//       factCheckStatus: "verified",
+//       round: 1,
+//     },
+//   ],
+// };
 
 // Mock Challenge Requests
 export const mockChallenges: Challenge[] = [];
