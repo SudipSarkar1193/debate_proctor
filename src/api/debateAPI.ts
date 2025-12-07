@@ -1,156 +1,88 @@
-import { mockDebates, mockTopics, mockUsers, mockChallenges } from '../mock/mockData';
+import { mockTopics, mockUsers } from '../mock/mockData';
 import type { Debate, Topic, Message, User, Challenge, DebaterPosition } from '../types';
 import type { Socket } from "socket.io-client";
 
-const SIMULATED_DELAY = 500; // 500ms delay
-const STORAGE_KEY = 'debate_proctor_debates';
+// Access the environment variable defined in .env
+const API_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
 
-// --- INITIALIZATION ---
-let currentDebates: Debate[] = [];
-
-try {
-  const storedDebates = localStorage.getItem(STORAGE_KEY);
-  if (storedDebates) {
-    const parsed = JSON.parse(storedDebates);
-    // Ensure the parsed data is actually an array
-    if (Array.isArray(parsed)) {
-      currentDebates = parsed;
-    } else {
-      currentDebates = [...mockDebates];
-    }
-  } else {
-    currentDebates = [...mockDebates];
-  }
-} catch (error) {
-  console.error("Failed to load debates from local storage:", error);
-  currentDebates = [...mockDebates];
-}
-
-// Helper to save debates to localStorage
-const persistDebates = () => {
-  try {
-    if (currentDebates && Array.isArray(currentDebates)) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentDebates));
-    }
-  } catch (error) {
-    console.error("Failed to save debates to local storage:", error);
-  }
-};
-
-// Helper to simulate API calls with a delay
-const simulateApiCall = <T>(data: T): Promise<T> => {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      resolve(data ? JSON.parse(JSON.stringify(data)) : null);
-    }, SIMULATED_DELAY);
-  });
-};
-
-// --- AUTH ---
+// --- AUTH (Keep mock for now ) ---
 export const loginUser = async (username: string, password: string, role: 'debater' | 'audience'): Promise<User | null> => {
+  // Simulating login for now
   const user = mockUsers.find(
     u => u.username === username && u.password === password && u.role === role
   );
-  return simulateApiCall(user || null);
+  return user || null;
 };
-
 
 // --- DEBATES ---
-export const getDebates = (): Promise<Debate[]> => {
-  return simulateApiCall(currentDebates);
+
+// FETCH Real data from backend
+export const getDebateById = async (id: string): Promise<Debate | undefined> => {
+  try {
+    const response = await fetch(`${API_URL}/api/debates/${id}`);
+    if (!response.ok) return undefined;
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch debate:", error);
+    return undefined;
+  }
 };
 
-export const getDebateById = (id: string): Promise<Debate | undefined> => {
-    // Validate currentDebates exists before searching
-    const safeDebates = Array.isArray(currentDebates) ? currentDebates : [];
-    const debate = safeDebates.find(d => d.id === id);
-    return simulateApiCall(debate);
+export const getDebates = async (): Promise<Debate[]> => {
+  // Will add a GET /api/debates endpoint to server.js later
+  return []; 
 };
-
-
-// --- TOPICS ---
-export const getTopics = (): Promise<Topic[]> => {
-  return simulateApiCall(mockTopics);
-};
-
 
 // --- MESSAGES ---
-export const postMessage = (debateId: string, message: Omit<Message, 'id'> ,socket: Socket | null): Promise<Message> => {
-    const newMessage = { ...message, id: `m${Date.now()}` };
-    
-    if(socket){
-      socket.emit('sendMsg', {debateId,message});
-    }
-
-    return simulateApiCall(newMessage);
+export const postMessage = async (debateId: string, message: Omit<Message, 'id'>, socket: Socket | null): Promise<Message> => {
+  const newMessage = { ...message, id: `m${Date.now()}` }; // ID generation can move to backend if desired
+  
+  if (socket) {
+    // This emits to the socket.js backend which saves to DB
+    socket.emit('sendMsg', { debateId, message: newMessage }); 
+  }
+  return newMessage;
 };
 
-
-// --- USERS ---
-export const getUsers = (role?: 'debater' | 'audience'): Promise<User[]> => {
-    if (role) {
-        return simulateApiCall(mockUsers.filter(u => u.role === role));
-    }
-    return simulateApiCall(mockUsers);
+// --- TOPICS & USERS (Keep Mock for simplicity) ---
+export const getTopics = async (): Promise<Topic[]> => Promise.resolve(mockTopics);
+export const getUsers = async (role?: 'debater' | 'audience'): Promise<User[]> => {
+    if (role) return Promise.resolve(mockUsers.filter(u => u.role === role));
+    return Promise.resolve(mockUsers);
 };
-
 
 // --- CHALLENGES ---
-export const getChallenges = (): Promise<Challenge[]> => {
-    return simulateApiCall(mockChallenges);
-};
-
-export const createChallenge = (challenger: User, topicId: string, position: DebaterPosition): Promise<Challenge> => {
+// We treat creating a challenge as creating a debate in the DB immediately
+export const createChallenge = async (challenger: User, topicId: string, position: DebaterPosition): Promise<Challenge> => {
     const topic = mockTopics.find(t => t.id === topicId);
-    if (!topic) {
-        return Promise.reject(new Error("Topic not found"));
-    }
+    if (!topic) throw new Error("Topic not found");
 
     const newChallenge: Challenge = {
-        id: `c${Date.now()}`,
-        challenger: { id: challenger.id, username: challenger.username },
+        id: `c${Date.now()}`, // Temporary ID, will be replaced by addChallengeAsDebate logic usually
+        challenger,
         topic,
         position,
         status: 'pending',
         createdAt: new Date().toISOString(),
     };
-    mockChallenges.push(newChallenge);
-    return simulateApiCall(newChallenge);
+    return newChallenge;
 };
 
-
-export const addChallengeAsDebate = (challenge: Challenge) => {
-  const newDebate: Debate = {
-    id: challenge.id,
-    topic: challenge.topic,
-    debater1: {
-      id: challenge.challenger.id,
-      username: challenge.challenger.username,
-      position: challenge.position,
-    },
-    debater2: challenge.challenged
-      ? {
-          id: challenge.challenged.id,
-          username: challenge.challenged.username,
-          position: challenge.position === "for" ? "against" : "for",
-        }
-      : {
-          id: "pending",
-          username: "Waiting...",
-          position: "against",
-        },
-    status: "live",
-    currentRound: 1,
-    totalRounds: 3,
-    currentTurn: "debater1",
-    timeRemaining: 600,
-    startedAt: new Date().toISOString(),
-  };
-
-  // Safe push
-  if (!Array.isArray(currentDebates)) {
-    currentDebates = [];
+// Save the challenge to the Postgres DB
+export const addChallengeAsDebate = async (challenge: Challenge) => {
+  try {
+    await fetch(`${API_URL}/api/debates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: challenge.id,
+        topic: challenge.topic,
+        debater1: challenge.challenger,
+        position: challenge.position,
+        // debater2 is undefined/waiting
+      })
+    });
+  } catch (error) {
+    console.error("Failed to create debate in DB:", error);
   }
-  currentDebates.push(newDebate);
-  persistDebates();
 };
