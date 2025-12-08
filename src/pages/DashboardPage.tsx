@@ -1,7 +1,8 @@
+// src/pages/DashboardPage.tsx
 import React, { useState, useEffect, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Eye, Swords, LogOut, Users, Loader2 } from "lucide-react";
+import { Plus, Eye, Swords, LogOut, Users, Loader2, Copy, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,35 +18,33 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import type { Debate, Topic, User, Challenge } from "@/types";
+
 import {
   getDebates,
   getTopics,
   getUsers,
   createChallenge,
-  addChallengeAsDebate,
+  joinDebate, // Added import
 } from "@/api/debateAPI";
-import { mockDebates } from "@/mock/mockData";
 import { useSocket } from "../contexts/SocketContext";
 
 const DashboardPage: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  // --- State ---
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [debates, setDebates] = useState<Debate[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [availableOpponents, setAvailableOpponents] = useState<User[]>([]);
-  const [challenges, setChallenges] = useState<Challenge[]>([]);
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [challenges, setChallenges] = useState<Challenge[]>([]); // "Created Debates"
+  
+  // Create Modal State
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState<boolean>(false);
-  const [isEnterCodeOpen, setIsEnterCodeOpen] = useState<boolean>(false);
   const [selectedTopic, setSelectedTopic] = useState<string>("");
-  const [selectedPosition, setSelectedPosition] = useState<"for" | "against">(
-    "for"
-  );
-  const [opponentSearch, setOpponentSearch] = useState<string>("");
-  const [debateRoomId, setDebateRoomId] = useState<string>("");
-  const socket = useSocket();
+  const [selectedPosition, setSelectedPosition] = useState<"for" | "against">("for");
+  
+  // Join By ID State (NEW)
+  const [joinId, setJoinId] = useState("");
+  const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -56,14 +55,9 @@ const DashboardPage: React.FC = () => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const [debatesData, topicsData, debatersData] = await Promise.all([
-          getDebates(),
-          getTopics(),
-          getUsers("debater"),
-        ]);
-        setDebates(debatesData);
+        const [topicsData] = await Promise.all([getTopics()]);
         setTopics(topicsData);
-        setAvailableOpponents(debatersData.filter((d) => d.id !== user.id));
+        // In a real app, we would fetch existing challenges here too
       } catch (error) {
         toast.error("Error", { description: "Failed to load dashboard data." });
       } finally {
@@ -79,87 +73,56 @@ const DashboardPage: React.FC = () => {
     navigate("/login");
   };
 
-  const handleWatchDebate = (debateId: string): void => {
-    console.log("Navigating to debate:", debateId);
-    console.log(socket);
-    if (socket) {
-      console.log(socket);
-
-      socket.emit("debate-room", debateId);
-    }
-    navigate(`/debate/${debateId}`);
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.info("ID copied to clipboard!");
   };
 
-  function generateRandomKey(): string {
-    return "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx".replace(/[x]/g, () => {
-      return ((Math.random() * 16) | 0).toString(16);
-    });
-  }
-
+  // --- 1. Create Challenge Logic ---
   const handleCreateChallenge = async () => {
     if (!selectedTopic || !user) {
-      toast.warning("Missing Information", {
-        description: "Please select a topic and position.",
-      });
+      toast.warning("Missing Information", { description: "Please select a topic." });
       return;
     }
 
     try {
-      // 1. Create challenge on backend
-      const created = await createChallenge(
-        user,
-        selectedTopic,
-        selectedPosition
-      );
-
-      // 2. Generate room id
-      const roomId = generateRandomKey();
-      setDebateRoomId(() => roomId);
-
-      const challengeObj: Challenge = {
-        id: roomId,
-        challenger: {
-          id: user.id,
-          username: user.username,
-        },
-        challenged: undefined, // or assign selected opponent if needed
-        topic: created.topic,
-        position: selectedPosition,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      };
-
-      // Insert safely into React state
-      setChallenges((prev) => [...prev, challengeObj]);
-      addChallengeAsDebate(challengeObj);
-      // 5. Close the dialog and reset inputs
+      const newChallenge = await createChallenge(user, selectedTopic, selectedPosition);
+      
+      // Add to local state to show immediately
+      setChallenges((prev) => [...prev, newChallenge]);
+      
       setIsCreateDialogOpen(false);
       setSelectedTopic("");
-      setSelectedPosition("for");
-      setOpponentSearch("");
-
-      // 6. Show success toast
-      toast.success("Challenge Created", {
-        description: "Debate Room ID: " + roomId,
-      });
+      toast.success("Debate Created! Share the ID below.");
     } catch (error) {
-      toast.error("Error", { description: "Failed to create challenge." });
+      console.error("Error creating challenge:", error);
+      toast.error("Failed to create challenge");
     }
   };
 
-  const filteredOpponents = opponentSearch
-    ? availableOpponents.filter((u) =>
-        u.username.toLowerCase().includes(opponentSearch.toLowerCase())
-      )
-    : [];
+  // --- 2. Join by ID Logic (NEW) ---
+  const handleJoinById = async () => {
+    if (!user || !joinId) return;
+    try {
+      // API call to backend to join the room
+      const success = await joinDebate(joinId, user);
+      if (success) {
+        toast.success("Joined successfully! Entering room...");
+        setIsJoinDialogOpen(false);
+        navigate(`/debate/${joinId}`);
+      } else {
+        toast.error("Invalid ID or Debate is full/active");
+      }
+    } catch (error) {
+      toast.error("Error joining debate");
+    }
+  };
 
-  const filteredDebates = debates.filter((debate) =>
-    debate.topic.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // --- 3. Enter Room Logic (For Creator) ---
+  const handleEnterRoom = (debateId: string) => {
+    navigate(`/debate/${debateId}`);
+  };
 
-  const submitId = () => {
-    navigate(`/debate/${debateRoomId}`);
-  }
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -169,35 +132,51 @@ const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white">
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="p-2 bg-slate-800 rounded-lg">
-              <Swords className="w-6 h-6 text-slate-300" />
+              <Swords className="w-6 h-6 text-red-500" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Debate Proctor</h1>
-              <p className="text-sm text-slate-400">
-                Welcome, {user?.username}
-              </p>
+              <h1 className="text-xl font-bold">Debate Proctor</h1>
+              <p className="text-sm text-slate-400">Welcome, {user?.username}</p>
             </div>
           </div>
+
           <div className="flex items-center space-x-3">
-            <Badge
-              variant="outline"
-              className="border-slate-700 text-slate-300"
-            >
-              {user?.role === "debater" ? "Debater" : "Audience"}
-            </Badge>
-            <Button
-              variant="ghost"
-              onClick={handleLogout}
-              className="text-slate-400 hover:text-white hover:bg-slate-800"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+            {/* JOIN BY ID BUTTON (NEW) */}
+            <Dialog open={isJoinDialogOpen} onOpenChange={setIsJoinDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="secondary" className="gap-2 bg-slate-800 hover:bg-slate-700 text-white">
+                  <LogIn className="w-4 h-4" /> Join by ID
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-slate-900 border-slate-700 text-white">
+                <DialogHeader>
+                  <DialogTitle>Enter Debate ID</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Debate Room ID</Label>
+                    <Input 
+                      placeholder="Paste ID here (e.g. 157e...)" 
+                      className="bg-slate-800 border-slate-600"
+                      value={joinId}
+                      onChange={(e) => setJoinId(e.target.value)}
+                    />
+                  </div>
+                  <Button onClick={handleJoinById} className="w-full bg-red-600 hover:bg-red-700">
+                    Join Room
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Button variant="ghost" onClick={handleLogout} className="text-slate-400 hover:text-white">
+              <LogOut className="w-4 h-4 mr-2" /> Logout
             </Button>
           </div>
         </div>
@@ -205,236 +184,121 @@ const DashboardPage: React.FC = () => {
 
       {/* Body */}
       <div className="container mx-auto px-4 py-8">
-        {/* Action Bar */}
         <div className="flex flex-col sm:flex-row gap-4 mb-8">
-          {/*<div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500 w-4 h-4" />
-            <Input
-              placeholder="Search debates by topic..."
-              value={searchQuery}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setSearchQuery(e.target.value)
-              }
-              className="pl-10 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
-            />
-          </div>
-          */}
-
-          {user?.role === "debater" && (
-            <>
-              <Dialog
-                open={isCreateDialogOpen}
-                onOpenChange={setIsCreateDialogOpen}
-              >
-                <DialogTrigger asChild>
-                  <Button className="bg-slate-700 hover:bg-slate-600">
-                    <Plus className="w-4 h-4 mr-2" />
-                    New Challenge
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-slate-900 border-slate-700 text-white">
-                  <DialogHeader>
-                    <DialogTitle>Create New Challenge</DialogTitle>
-                  </DialogHeader>
-
-                  <div className="space-y-4 mt-4">
-                    {/* Topic */}
-                    <div className="space-y-2">
-                      <Label>Select Topic</Label>
-                      <select
-                        value={selectedTopic}
-                        onChange={(e) => setSelectedTopic(e.target.value)}
-                        className="w-full p-2 bg-slate-800 border border-slate-700 rounded-md text-white"
-                      >
-                        <option value="">Choose a topic...</option>
-                        {topics.map((topic) => (
-                          <option key={topic.id} value={topic.id}>
-                            {topic.title}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Position */}
-                    <div className="space-y-2">
-                      <Label>Your Position</Label>
-                      <div className="flex gap-3">
-                        <Button
-                          type="button"
-                          variant={
-                            selectedPosition === "for" ? "default" : "outline"
-                          }
-                          onClick={() => setSelectedPosition("for")}
-                          className={
-                            selectedPosition === "for"
-                              ? "bg-slate-700"
-                              : "border-slate-700"
-                          }
-                        >
-                          For
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={
-                            selectedPosition === "against" ? "default" : "ghost"
-                          }
-                          onClick={() => setSelectedPosition("against")}
-                          className={
-                            selectedPosition === "against"
-                              ? "bg-slate-700"
-                              : "border-slate-700"
-                          }
-                        >
-                          Against
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Opponent */}
-                    <div className="space-y-2">
-                      <Label>Challenge Opponent (optional)</Label>
-                      <Input
-                        placeholder="Search by username..."
-                        value={opponentSearch}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                          setOpponentSearch(e.target.value)
-                        }
-                        className="bg-slate-800 border-slate-700 text-white"
-                      />
-                      {opponentSearch && (
-                        <div className="max-h-32 overflow-y-auto space-y-1 mt-2">
-                          {filteredOpponents.map((debater) => (
-                            <div
-                              key={debater.id}
-                              className="p-2 bg-slate-800 rounded hover:bg-slate-700 cursor-pointer text-sm"
-                            >
-                              {debater.username}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
+          {/* Create Button */}
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-red-600 hover:bg-red-700 text-white">
+                <Plus className="w-4 h-4 mr-2" /> Start New Debate
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-slate-900 border-slate-700 text-white">
+              <DialogHeader>
+                <DialogTitle>Create New Challenge</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label>Select Topic</Label>
+                  <select
+                    value={selectedTopic}
+                    onChange={(e) => setSelectedTopic(e.target.value)}
+                    className="w-full p-2 bg-slate-800 border border-slate-700 rounded-md text-white"
+                  >
+                    <option value="">Choose a topic...</option>
+                    {topics.map((t) => (
+                      <option key={t.id} value={t.id}>{t.title}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Your Position</Label>
+                  <div className="flex gap-3">
                     <Button
-                      onClick={handleCreateChallenge}
-                      className="w-full bg-slate-700 hover:bg-slate-600"
+                      type="button"
+                      variant={selectedPosition === "for" ? "default" : "outline"}
+                      onClick={() => setSelectedPosition("for")}
+                      className={selectedPosition === "for" ? "bg-green-600" : "bg-transparent border-slate-600"}
                     >
-                      Create Challenge
+                      For
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={selectedPosition === "against" ? "default" : "outline"}
+                      onClick={() => setSelectedPosition("against")}
+                      className={selectedPosition === "against" ? "bg-red-600" : "bg-transparent border-slate-600"}
+                    >
+                      Against
                     </Button>
                   </div>
-                </DialogContent>
-              </Dialog>
-              <Dialog open={isEnterCodeOpen} onOpenChange={setIsEnterCodeOpen}>
-                <DialogTrigger>
-                  <Button className="bg-slate-700 hover:bg-slate-600">
-                    Enter into Challenge
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-slate-900 border-slate-700 text-white">
-                  <DialogHeader>
-                    <DialogTitle>Enter Debate Room Id</DialogTitle>
-                  </DialogHeader>
-
-                  <div className="space-y-4 mt-4">
-                    <input
-                      type="text"
-                      value={debateRoomId}
-                      onChange={(e) => setDebateRoomId(e.target.value)}
-                      placeholder="Enter Room Id"
-                      className="w-full p-3 rounded-md bg-slate-800 text-white border border-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-500"
-                    />
-                    <Button
-                      onClick={submitId}
-                      className="w-full bg-slate-700 hover:bg-slate-600"
-                    >
-                      Submit
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </>
-          )}
+                </div>
+                <Button onClick={handleCreateChallenge} className="w-full bg-slate-100 text-slate-900 hover:bg-white">
+                  Create
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
-        {/* Live Debates */}
+        {/* Created Debates List */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
-            <Users className="w-6 h-6 mr-2 text-slate-400" />
-            Live Debates
+            <Users className="w-6 h-6 mr-2 text-slate-400" /> Your Active Debates
           </h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <AnimatePresence>
-              {challenges.map((challenge, index) => (
-                <motion.div
-                  key={challenge.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <Card className="p-6 bg-slate-900/50 border-slate-700 hover:border-slate-600 transition-all">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-white mb-2">
-                          {challenge.topic.title}
-                        </h3>
-                        <Badge className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
-                          {challenge.status === "pending"
-                            ? "Waiting..."
-                            : challenge.status}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 mb-4">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-400">Challenger:</span>
-                        <span className="text-white font-medium">
-                          {challenge.challenger.username}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-400">Position:</span>
-                        <span className="text-white font-medium capitalize">
-                          {challenge.position}
-                        </span>
+          
+          {challenges.length === 0 ? (
+             <Card className="p-8 bg-slate-900/50 border-slate-700 text-center">
+               <p className="text-slate-400">You haven't created any debates yet.</p>
+             </Card>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <AnimatePresence>
+                {challenges.map((challenge, index) => (
+                  <motion.div
+                    key={challenge.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <Card className="p-6 bg-slate-900/50 border-slate-700 hover:border-slate-600 transition-all">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-white">{challenge.topic.title}</h3>
+                          <Badge className="mt-2 bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
+                            {challenge.status}
+                          </Badge>
+                        </div>
+                        <Button 
+                          onClick={() => handleEnterRoom(challenge.id)}
+                          size="sm"
+                          variant="outline"
+                          className="border-red-500 text-red-400 hover:bg-red-950"
+                        >
+                          Enter Room
+                        </Button>
                       </div>
 
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-400">Challenged:</span>
-                        <span className="text-white font-medium">
-                          {challenge.challenged?.username || "Open Challenge"}
-                        </span>
+                      {/* ID Copy Section */}
+                      <div className="p-3 bg-slate-950 rounded border border-dashed border-slate-700 flex items-center justify-between">
+                        <code className="text-xs text-slate-400 font-mono truncate max-w-[200px]">
+                          {challenge.id}
+                        </code>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => copyToClipboard(challenge.id)}
+                          className="h-6 w-6 text-slate-400 hover:text-white"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
                       </div>
-
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-400">Created:</span>
-                        <span className="text-white">
-                          {new Date(challenge.createdAt).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-
-                    <Button
-                      onClick={() => handleWatchDebate(challenge.id)}
-                      className="w-full bg-slate-700 hover:bg-slate-600"
-                    >
-                      <Eye className="w-4 h-4 mr-2" />
-                      {user?.role === "debater" ? "Join" : "Watch"} Challenge
-                    </Button>
-                  </Card>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-
-          {filteredDebates.length === 0 && !isLoading && (
-            <Card className="p-8 bg-slate-900/50 border-slate-700 text-center">
-              <p className="text-slate-400">
-                No debates found for your search.
-              </p>
-            </Card>
+                      <p className="text-[10px] text-slate-500 mt-2 text-center">
+                        Share this ID with your opponent to start
+                      </p>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
           )}
         </div>
       </div>

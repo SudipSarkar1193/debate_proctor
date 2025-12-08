@@ -22,13 +22,12 @@ import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
-import { toast } from "sonner"; // Correctly imported
+import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
 import { useAuth } from "../contexts/AuthContext";
 import type { Debate, Message, User } from "@/types";
 import {
   getDebateById,
-  // getMessagesForDebate,
   postMessage,
 } from "@/api/debateAPI";
 import { useSocket } from "@/contexts/SocketContext";
@@ -38,6 +37,8 @@ const DebatePage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messageCounterRef = useRef(0);
+  const hasJoinedRoom = useRef(false); // Track if we've joined the room
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [debate, setDebate] = useState<Debate | null>(null);
@@ -50,11 +51,10 @@ const DebatePage: React.FC = () => {
   const [showTurnBanner, setShowTurnBanner] = useState<boolean>(false);
   const [currentTurnUser, setCurrentTurnUser] = useState<User | null>(null);
   const socket = useSocket();
-  let messageCounter = 0;
 
   function generateMessageId() {
-    messageCounter += 1;
-    return messageCounter;
+    messageCounterRef.current += 1;
+    return `${Date.now()}-${messageCounterRef.current}`;
   }
 
   // --- Load Debate Data ---
@@ -67,24 +67,18 @@ const DebatePage: React.FC = () => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const [debateData] = await Promise.all([
-          getDebateById(debateId),
-          // getMessagesForDebate(debateId),
-        ]);
+        const debateData = await getDebateById(debateId);
 
         if (debateData) {
           setDebate(debateData);
-          // setMessages(messagesData);
           setTimeRemaining(debateData.timeRemaining);
           setCurrentTurn(debateData.currentTurn);
         } else {
-          // Corrected toast call
           console.log(debateId);
           toast.error("Error", { description: "Debate not found." });
           navigate("/dashboard");
         }
       } catch (error) {
-        // Corrected toast call
         toast.error("Error", { description: "Failed to load debate data." });
         navigate("/dashboard");
       } finally {
@@ -94,6 +88,72 @@ const DebatePage: React.FC = () => {
 
     fetchData();
   }, [debateId, navigate]);
+
+  // --- Join Socket Room (FIXED) ---
+  useEffect(() => {
+    if (!socket || !debateId) {
+      console.log("⏳ Waiting for socket or debateId...");
+      return;
+    }
+
+    // Wait for socket to be connected
+    if (!socket.connected) {
+      console.log("⏳ Socket not connected yet, waiting...");
+      const handleConnect = () => {
+        console.log(`✅ Socket connected! Joining room: ${debateId}`);
+        socket.emit("join-debate", debateId);
+        hasJoinedRoom.current = true;
+      };
+
+      socket.once("connect", handleConnect);
+      return () => {
+        socket.off("connect", handleConnect);
+      };
+    }
+
+    // Socket is already connected
+    if (!hasJoinedRoom.current) {
+      console.log(`🔌 Socket already connected, joining room: ${debateId}`);
+      socket.emit("join-debate", debateId);
+      hasJoinedRoom.current = true;
+    }
+
+    return () => {
+      hasJoinedRoom.current = false;
+    };
+  }, [socket, debateId]);
+
+  // --- Socket Message Listener ---
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleMessage = (message: any) => {
+      console.log("📨 Received message via socket:", message);
+
+      setMessages((prevMessages) => {
+        const isDuplicate = prevMessages.some(
+          (msg) => (msg as any).messageid === (message as any).messageid || 
+                   msg.messageId === message.messageId
+        );
+
+        if (isDuplicate) {
+          console.log("⚠️ Duplicate message, skipping");
+          return prevMessages;
+        }
+
+        console.log("✅ Adding new message to state");
+        return [...prevMessages, message];
+      });
+    };
+
+    console.log("👂 Setting up message listener");
+    socket.on("real-time-sync-message", handleMessage);
+
+    return () => {
+      console.log("🔇 Removing message listener");
+      socket.off("real-time-sync-message", handleMessage);
+    };
+  }, [socket]);
 
   // --- Timer ---
   useEffect(() => {
@@ -110,26 +170,6 @@ const DebatePage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
-    if (!socket) {
-      return;
-    }
-    const handleMessage = (message: any) => {
-      const isFound = messages.find(
-        (msg) => msg.messageId === message.messageId
-      );
-      console.log(isFound);
-
-      if (!isFound) {
-        setMessages((prev) => [...prev, message]);
-      }
-    };
-    socket?.on("real-time-sync-message", handleMessage);
-
-    return () => {
-      socket.off("real-time-sync-message", handleMessage);
-    };
-  }, [socket]);
   // --- Handle Send ---
   const handleSendMessage = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -142,7 +182,6 @@ const DebatePage: React.FC = () => {
       (currentTurn === "debater2" && isDebater2);
 
     if (!isMyTurn && user.role === "debater") {
-      // Corrected toast call
       toast.warning("Not your turn", {
         description: "Wait for your opponent to finish",
       });
@@ -168,12 +207,12 @@ const DebatePage: React.FC = () => {
     };
 
     try {
-      console.log(messageData);
-      const sentMessage = await postMessage(debate.id, messageData, socket);
-      setMessages((prev) => [...prev, sentMessage]);
+      console.log("📤 Sending message:", messageData);
+      
+      await postMessage(debate.id, messageData, socket);
+      
       setNewMessage("");
 
-      // Simulate turn change
       const nextTurn = currentTurn === "debater1" ? "debater2" : "debater1";
       const nextTurnUser =
         nextTurn === "debater1" ? debate.debater1 : debate.debater2;
@@ -182,8 +221,10 @@ const DebatePage: React.FC = () => {
       setCurrentTurnUser(nextTurnUser as User);
       setShowTurnBanner(true);
       setTimeout(() => setShowTurnBanner(false), 3000);
+      
+      console.log("✅ Message sent successfully");
     } catch (error) {
-      // Corrected toast call
+      console.error("❌ Error sending message:", error);
       toast.error("Error", { description: "Could not send message." });
     }
   };
@@ -335,10 +376,10 @@ const DebatePage: React.FC = () => {
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 <AnimatePresence>
                   {messages.map((msg, index) => {
-                    const isOwnMessage = msg.debaterId === user?.id;
+                    const isOwnMessage = msg.debaterId === user?.id || (msg as any).debaterid === user?.id;
                     return (
                       <motion.div
-                        key={msg.id}
+                        key={(msg as any).messageid || msg.messageId || index}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
@@ -353,7 +394,7 @@ const DebatePage: React.FC = () => {
                         >
                           <div className="flex items-center space-x-2 mb-1">
                             <p className="text-xs text-slate-400">
-                              {msg.debaterName}
+                              {msg.debaterName || (msg as any).debatername}
                             </p>
                             <p className="text-xs text-slate-500">
                               {new Date(msg.timestamp).toLocaleTimeString()}
@@ -375,17 +416,17 @@ const DebatePage: React.FC = () => {
                               transition={{ delay: 0.3 }}
                               className="flex items-center space-x-1 mt-2"
                             >
-                              {getFactCheckIcon(msg.factCheckStatus)}
+                              {getFactCheckIcon(msg.factCheckStatus || (msg as any).factcheckstatus)}
                               <span
                                 className={`text-xs ${
-                                  msg.factCheckStatus === "verified"
+                                  (msg.factCheckStatus || (msg as any).factcheckstatus) === "verified"
                                     ? "text-green-400"
-                                    : msg.factCheckStatus === "questionable"
+                                    : (msg.factCheckStatus || (msg as any).factcheckstatus) === "questionable"
                                     ? "text-yellow-400"
                                     : "text-slate-500"
                                 }`}
                               >
-                                {msg.factCheckStatus}
+                                {msg.factCheckStatus || (msg as any).factcheckstatus}
                               </span>
                             </motion.div>
                           </div>

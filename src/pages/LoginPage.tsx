@@ -14,7 +14,7 @@ import { toast } from "sonner";
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [role, setRole] = useState<"debater" | "audience">("debater");
+  // const [role, setRole] = useState<"debater" | "audience">("debater");
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -22,7 +22,7 @@ const LoginPage: React.FC = () => {
   const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const user = await loginUser(username, password, role);
+    const user = await loginUser(username, password);
 
     if (user) {
       login(user);
@@ -96,27 +96,7 @@ const LoginPage: React.FC = () => {
               />
             </div>
 
-            <div className="space-y-3">
-              <Label className="text-slate-300">Role</Label>
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Button
-                    type="button"
-                    variant={role === "debater" ? "default" : "outline"}
-                    className={`w-full ${
-                      role === "debater"
-                        ? "bg-slate-700 hover:bg-slate-600"
-                        : "bg-slate-800 border-slate-700 hover:bg-slate-750"
-                    }`}
-                    onClick={() => setRole("debater")}
-                  >
-                    <LogIn className="w-4 h-4 mr-2" />
-                    Debater
-                  </Button>
-                </motion.div>
-              </div>
+            
 
             <Button
               type="submit"
